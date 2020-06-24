@@ -1,7 +1,6 @@
 ////////////////////////////////////////////////
 ///// CORRIGE POSSÍVEIS ERROS NO TELEFONE //////
 ////////////////////////////////////////////////
-
 function correcaoFone(){
   
   var sheet = SpreadsheetApp.getActiveSheet();
@@ -224,10 +223,66 @@ function validarCPF(cpf) {
     return true;    
 }
 
+/**
+* @author Rudiney
+*
+* Creating enum from ContactsApp.Month list
+*/
+function monthsToEnum(){
+  
+  var months = ContactsApp.Month;
+  
+  const monthsEnum = {
+    1: months.JANUARY,
+    2: months.FEBRUARY,
+    3: months.MARCH,
+    4: months.APRIL,
+    5: months.MAY,
+    6: months.JUNE,
+    7: months.JULY,
+    8: months.AUGUST,
+    9: months.SEPTEMBER,
+    10: months.OCTOBER,
+    11: months.NOVEMBER,
+    12: months.DECEMBER
+  };
+  
+  return monthsEnum;
+}
+
+/**
+* @author Rudiney
+*
+* Get birthday month from birthday
+*
+* param birthday: Needs to be a Date type
+*/
+function getBirthdayMonth(birthday){
+  var month = birthday.getMonth();
+  var monthsEnum = monthsToEnum();
+  var birthdayMonth = monthsEnum[month+1];
+  
+  return birthdayMonth;
+}
+
+/**
+* @author Rudiney
+*
+* See e-mail's list group programatically
+*
+* After executing this function, go to menu 'View > Logs'
+*/
+function listContactGroup(){
+  var groups = ContactsApp.getContactGroups();
+  
+  for(var index in groups){
+     Logger.log(groups[index].getName());
+  }
+}
+
 ///////////////////////////////////////////
 ///// FUNÇÃO PRINCIPAL, MAL DESCRITA //////
 ///////////////////////////////////////////
-
 function corrigeEntradas(e) {
   try {
     //Faz as correções na tabela de cadastro de sócios e os cadastra no contatos
@@ -340,7 +395,6 @@ function corrigeEntradas(e) {
     
     //Corrige telefones e verifica se errado - Colunas 14 e 15
     column = 14;
-    var teste = dataRange.getCell(lastRow,column).getValue().toString();
     dataRange.getCell(lastRow,column).setValue(formatarFone(dataRange.getCell(lastRow,column).getValue().toString()));
     var theirPhone1 = dataRange.getCell(lastRow,column).getValue().toString();
     
@@ -358,8 +412,11 @@ function corrigeEntradas(e) {
     contato.setFullName(theirName);  
     
     //adiciona aniversário
-    if (nascimento)
-      contato.addDate(ContactsApp.Field.BIRTHDAY, ContactsApp.Month.values()[nascimento.getMonth()], nascimento.getDate(), nascimento.getYear());
+    if (nascimento){
+      var birthdayMonth = getBirthdayMonth(nascimento);//@Rudiney
+      
+      contato.addDate(ContactsApp.Field.BIRTHDAY, birthdayMonth, nascimento.getDate(), nascimento.getYear());
+    }
     
     //adiciona naturalidade
     contato.addCustomField("Naturalidade", naturalidade);
@@ -384,14 +441,18 @@ function corrigeEntradas(e) {
     contato.addCustomField("CEP", theirCEP);
     
     //adiciona telefone
-    if (theirPhone1) {
+    var textTelefonePendente = "Telefone pendente";
+    var isTelefonePendente = theirPhone1 !== undefined && theirPhone1.includes(textTelefonePendente);
+    if (!isTelefonePendente) {//@Rudiney
       if (parseInt(theirPhone1.charAt(3)) > 4 || parseInt(theirPhone1.charAt(2)) == 9){          //é celular?
         contato.addPhone(ContactsApp.Field.MOBILE_PHONE, theirPhone1);
       } else {                                                       
         contato.addPhone(ContactsApp.Field.HOME_PHONE, theirPhone1);
       }
     }
-    if (theirPhone2) {
+    
+    isTelefonePendente = theirPhone2 !== undefined && theirPhone2.includes(textTelefonePendente);
+    if (!isTelefonePendente) {//@Rudiney
       if (parseInt(theirPhone2.charAt(3)) > 4 || parseInt(theirPhone2.charAt(2)) == 9){          //é celular?
         contato.addPhone(ContactsApp.Field.MOBILE_PHONE, theirPhone2);
       } else {                                                       
@@ -473,8 +534,13 @@ function corrigeEntradas(e) {
       });  
       
     } else {         //Caso CPF inválido
+      /*@Rudiney
+      listContactGroup(); //See account groups menu 'View > Log'
+      */
+      
+      var group = ContactsApp.getContactGroup("Associados pendentes");
       //Adiciona o contato a um grupo de pendência
-      contato.addToGroup(ContactsApp.getContactGroup("Associados pendentes"));
+      contato.addToGroup(group);
       //Envia comunicando pendência para possível cadastrado
       MailApp.sendEmail({
         to: theirMail,
